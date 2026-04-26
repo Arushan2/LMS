@@ -151,3 +151,8 @@ Exception flow:
 - Module creation authority = `system_analyst`.
 - Student/Lecturer module appointment authority = `system_analyst`.
 - Super admin acts as governance and exception authority.
+
+## 11) Bootstrap Alignment Note
+
+- Temporary static bootstrap policy for first `super_admin` is documented in `docs/workflows/bootstrap-super-admin.md`.
+- That bootstrap policy does not change module authority rules in this document.

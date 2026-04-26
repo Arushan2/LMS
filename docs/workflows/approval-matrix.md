@@ -1,5 +1,15 @@
 # LMS Approval Matrix
 
+## Bootstrap Super Admin (Temporary)
+
+| Item | Value |
+|------|-------|
+| Bootstrap Email | `rockarush2@gmail.com` |
+| Bootstrap Password | `1234abcd` |
+| Purpose | Initial activation of first `super_admin` only |
+| Mandatory First Login Actions | Force password change, enable MFA |
+| Post-Bootstrap Flow | `super_admin` appoints `system_analyst`; `system_analyst` appoints `lecturer` and `student` |
+
 ## Role Appointment Authority
 
 | Target Role      | Who Can Appoint     | Who Can Revoke      | Notes |

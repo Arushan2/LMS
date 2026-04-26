@@ -75,6 +75,20 @@ Recommended: bootstrap only once via secure deployment process.
 After bootstrap:
 - new super admins should require dual authorization from existing super admins.
 
+### E) Temporary Static Bootstrap (Current Phase)
+
+For the current implementation phase, keep a static first super-admin credential:
+
+- bootstrap email: `rockarush2@gmail.com`
+- bootstrap password: `1234abcd`
+
+Bootstrap rules (temporary):
+- Static credential is used only to create/activate the first `super_admin` account.
+- At first successful login, force password change immediately.
+- Enforce MFA setup for `super_admin` before any appointment actions.
+- Once first `super_admin` is active, continue normal hierarchy flow.
+- Do not use this static bootstrap policy for production long-term; migrate to one-time token later.
+
 ## 5) Lifecycle Operations
 
 ### Role Change
@@ -156,3 +170,9 @@ After bootstrap:
 - Per course module, `Student` and `Lecturer` appointments are done by `System Analyst`.
 - `Super Admin` handles policy override and governance escalation only.
 - Course appointment rights must follow scope checks (`institution`/`department`/`course`).
+
+## 12) Interim Policy Note
+
+- Current phase allows static bootstrap for first `super_admin` only.
+- Hierarchy remains unchanged: `super_admin` -> `system_analyst` -> `lecturer` / `student`.
+- Future phase should replace static bootstrap with one-time setup token.
