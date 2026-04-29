@@ -12,6 +12,7 @@ $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
 header('Access-Control-Allow-Origin: ' . $frontendUrl);
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Credentials: true');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
@@ -69,11 +70,17 @@ if ($method === 'POST' && $uri === '/api/auth/signin') {
         exit;
     }
 
-    $result = $auth->signin($email, $password);
+    $ipAddress = (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+    $result = $auth->signin($email, $password, $ipAddress);
     if (!$result['ok']) {
         jsonResponse(['ok' => false, 'message' => $result['message']], (int) ($result['status'] ?? 401));
         exit;
     }
+
+    $appUrl = (string) env('APP_URL', 'http://localhost:8000');
+    $isSecure = str_starts_with($appUrl, 'https://');
+    setAuthCookie($result['token'] ?? null, (int) ($result['expiresAt'] ?? null), $isSecure);
+    unset($result['token'], $result['expiresAt']);
 
     jsonResponse($result);
     exit;
@@ -97,8 +104,26 @@ if ($method === 'GET' && $uri === '/api/approvals/pending') {
         exit;
     }
 
+    if (!$auth->canReviewRequests($tokenUser)) {
+        jsonResponse(['ok' => false, 'message' => 'Forbidden.'], 403);
+        exit;
+    }
+
     $requests = $auth->pendingRoleRequests($tokenUser);
     jsonResponse(['ok' => true, 'items' => $requests]);
+    exit;
+}
+
+if ($method === 'POST' && $uri === '/api/auth/logout') {
+    $token = getBearerToken();
+    if ($token) {
+        $auth->revokeToken($token);
+    }
+
+    $appUrl = (string) env('APP_URL', 'http://localhost:8000');
+    $isSecure = str_starts_with($appUrl, 'https://');
+    setAuthCookie(null, null, $isSecure);
+    jsonResponse(['ok' => true, 'message' => 'Signed out.']);
     exit;
 }
 

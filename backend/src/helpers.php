@@ -13,10 +13,24 @@ function getBearerToken(): ?string
 {
     $header = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
     if (!is_string($header) || !str_starts_with($header, 'Bearer ')) {
-        return null;
+        $cookieToken = $_COOKIE['lms_token'] ?? null;
+        return is_string($cookieToken) && $cookieToken !== '' ? $cookieToken : null;
     }
 
     return trim(substr($header, 7));
+}
+
+function setAuthCookie(?string $token, ?int $expiresAt, bool $secure): void
+{
+    $options = [
+        'expires' => $expiresAt ?? (time() - 3600),
+        'path' => '/',
+        'httponly' => true,
+        'secure' => $secure,
+        'samesite' => 'Lax',
+    ];
+
+    setcookie('lms_token', $token ?? '', $options);
 }
 
 function requestJson(): array

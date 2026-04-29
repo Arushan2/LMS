@@ -9,13 +9,13 @@ const roleOptions = [
   { value: 'super_admin', label: 'Super Admin' },
 ];
 
-async function apiCall(path, method, body, token) {
+async function apiCall(path, method, body) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
+    credentials: 'include',
     body: body ? JSON.stringify(body) : undefined,
   });
 
@@ -106,8 +106,7 @@ function SigninForm({ onSignedIn }) {
 
     try {
       const result = await apiCall('/auth/signin', 'POST', form);
-      localStorage.setItem('lms_token', result.token);
-      onSignedIn(result.user, result.token);
+      onSignedIn(result.user);
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -118,7 +117,7 @@ function SigninForm({ onSignedIn }) {
   return (
     <form className="card" onSubmit={onSubmit}>
       <h2>Sign In</h2>
-      <p className="helper">Bootstrap super admin: rockarush2@gmail.com / 1234abcd</p>
+      <p className="helper">Use your assigned admin credentials.</p>
       <input name="email" type="email" placeholder="Email" value={form.email} onChange={onChange} required />
       <input name="password" type="password" placeholder="Password" value={form.password} onChange={onChange} required />
       <button type="submit" disabled={loading}>{loading ? 'Signing in...' : 'Sign In'}</button>
@@ -127,7 +126,7 @@ function SigninForm({ onSignedIn }) {
   );
 }
 
-function ApprovalPanel({ token, user }) {
+function ApprovalPanel({ user }) {
   const [items, setItems] = useState([]);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -145,7 +144,7 @@ function ApprovalPanel({ token, user }) {
     setMessage('');
 
     try {
-      const result = await apiCall('/approvals/pending', 'GET', null, token);
+      const result = await apiCall('/approvals/pending', 'GET');
       setItems(result.items || []);
     } catch (error) {
       setMessage(error.message);
@@ -160,7 +159,7 @@ function ApprovalPanel({ token, user }) {
 
   const review = async (requestId, action) => {
     try {
-      await apiCall(`/approvals/${requestId}/review`, 'POST', { action }, token);
+      await apiCall(`/approvals/${requestId}/review`, 'POST', { action });
       await loadItems();
     } catch (error) {
       setMessage(error.message);
@@ -201,7 +200,7 @@ function ApprovalPanel({ token, user }) {
   );
 }
 
-function Dashboard({ user, token, onSignOut }) {
+function Dashboard({ user, onSignOut }) {
   return (
     <main className="container">
       <div className="card">
@@ -213,46 +212,37 @@ function Dashboard({ user, token, onSignOut }) {
         <p>Status: <code>{user.status}</code></p>
         <p>Roles: {user.roles.length ? user.roles.join(', ') : 'No active roles'}</p>
       </div>
-      <ApprovalPanel token={token} user={user} />
+      <ApprovalPanel user={user} />
     </main>
   );
 }
 
 export default function App() {
-  const [token, setToken] = useState(localStorage.getItem('lms_token') || '');
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const bootstrap = async () => {
-      if (!token) {
-        setReady(true);
-        return;
-      }
-
       try {
-        const result = await apiCall('/auth/me', 'GET', null, token);
+        const result = await apiCall('/auth/me', 'GET');
         setUser(result.user);
       } catch (error) {
-        localStorage.removeItem('lms_token');
-        setToken('');
+        setUser(null);
       } finally {
         setReady(true);
       }
     };
 
     bootstrap();
-  }, [token]);
+  }, []);
 
-  const onSignedIn = (signedInUser, authToken) => {
+  const onSignedIn = (signedInUser) => {
     setUser(signedInUser);
-    setToken(authToken);
   };
 
   const onSignOut = () => {
-    localStorage.removeItem('lms_token');
+    apiCall('/auth/logout', 'POST').catch(() => undefined);
     setUser(null);
-    setToken('');
   };
 
   if (!ready) {
@@ -260,7 +250,7 @@ export default function App() {
   }
 
   if (user) {
-    return <Dashboard user={user} token={token} onSignOut={onSignOut} />;
+    return <Dashboard user={user} onSignOut={onSignOut} />;
   }
 
   return (

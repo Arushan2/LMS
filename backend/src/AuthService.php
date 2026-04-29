@@ -63,10 +63,17 @@ final class AuthService
         return ['ok' => true, 'message' => 'Signup successful. Await approval before login access.'];
     }
 
-    public function signin(string $email, string $password): array
+    public function signin(string $email, string $password, string $ipAddress): array
     {
-        $user = $this->findUserByEmail($email);
+        $normalizedEmail = strtolower($email);
+
+        if ($this->isLoginLocked($normalizedEmail, $ipAddress)) {
+            return ['ok' => false, 'status' => 429, 'message' => 'Too many failed attempts. Try again later.'];
+        }
+
+        $user = $this->findUserByEmail($normalizedEmail);
         if ($user === null || !password_verify($password, $user['password_hash'])) {
+            $this->recordFailedLogin($normalizedEmail, $ipAddress);
             return ['ok' => false, 'status' => 401, 'message' => 'Invalid email or password.'];
         }
 
@@ -77,6 +84,8 @@ final class AuthService
                 'message' => 'Account is not active yet. Current status: ' . $user['status'],
             ];
         }
+
+        $this->clearLoginAttempts($normalizedEmail, $ipAddress);
 
         $token = randomToken();
         $hash = tokenHash($token);
@@ -103,6 +112,7 @@ final class AuthService
         return [
             'ok' => true,
             'token' => $token,
+            'expiresAt' => $expiresAt->getTimestamp(),
             'user' => [
                 'id' => (int) $user['id'],
                 'fullName' => $user['full_name'],
@@ -172,6 +182,20 @@ final class AuthService
         $stmt->execute($allowedTargets);
 
         return $stmt->fetchAll();
+    }
+
+    public function canReviewRequests(array $actor): bool
+    {
+        $roles = $actor['roles'] ?? [];
+
+        return in_array('super_admin', $roles, true)
+            || in_array('system_analyst', $roles, true);
+    }
+
+    public function revokeToken(string $token): void
+    {
+        $stmt = $this->db->prepare('DELETE FROM auth_tokens WHERE token_hash = :token_hash');
+        $stmt->execute([':token_hash' => tokenHash($token)]);
     }
 
     public function reviewRequest(int $requestId, string $action, array $actor, ?string $note = null): array
@@ -329,6 +353,120 @@ final class AuthService
             ':target_user_id' => $targetUserId,
             ':metadata_json' => $metadata === null ? null : json_encode($metadata, JSON_UNESCAPED_SLASHES),
             ':created_at' => nowUtc(),
+        ]);
+    }
+
+    private function isLoginLocked(string $email, string $ipAddress): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT first_attempt_at, locked_until FROM login_attempts WHERE email = :email AND ip_address = :ip LIMIT 1'
+        );
+        $stmt->execute([
+            ':email' => $email,
+            ':ip' => $ipAddress,
+        ]);
+
+        $row = $stmt->fetch();
+        if (!$row) {
+            return false;
+        }
+
+        $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+        if (!empty($row['locked_until'])) {
+            $lockedUntil = new DateTimeImmutable($row['locked_until'], new DateTimeZone('UTC'));
+            if ($lockedUntil > $now) {
+                return true;
+            }
+        }
+
+        $windowMinutes = (int) env('LOGIN_WINDOW_MINUTES', '15');
+        $firstAttemptAt = new DateTimeImmutable($row['first_attempt_at'], new DateTimeZone('UTC'));
+        if ($firstAttemptAt->modify('+' . max(1, $windowMinutes) . ' minutes') < $now) {
+            $this->clearLoginAttempts($email, $ipAddress);
+        }
+
+        return false;
+    }
+
+    private function recordFailedLogin(string $email, string $ipAddress): void
+    {
+        $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+        $maxAttempts = (int) env('LOGIN_MAX_ATTEMPTS', '5');
+        $windowMinutes = (int) env('LOGIN_WINDOW_MINUTES', '15');
+        $lockMinutes = (int) env('LOGIN_LOCK_MINUTES', '15');
+
+        $stmt = $this->db->prepare(
+            'SELECT attempt_count, first_attempt_at, locked_until
+             FROM login_attempts
+             WHERE email = :email AND ip_address = :ip
+             LIMIT 1'
+        );
+        $stmt->execute([
+            ':email' => $email,
+            ':ip' => $ipAddress,
+        ]);
+
+        $row = $stmt->fetch();
+        if (!$row) {
+            $insert = $this->db->prepare(
+                'INSERT INTO login_attempts (email, ip_address, attempt_count, first_attempt_at, last_attempt_at, locked_until)
+                 VALUES (:email, :ip, :attempt_count, :first_attempt_at, :last_attempt_at, :locked_until)'
+            );
+            $insert->execute([
+                ':email' => $email,
+                ':ip' => $ipAddress,
+                ':attempt_count' => 1,
+                ':first_attempt_at' => $now->format('Y-m-d H:i:s'),
+                ':last_attempt_at' => $now->format('Y-m-d H:i:s'),
+                ':locked_until' => null,
+            ]);
+            return;
+        }
+
+        if (!empty($row['locked_until'])) {
+            $lockedUntil = new DateTimeImmutable($row['locked_until'], new DateTimeZone('UTC'));
+            if ($lockedUntil > $now) {
+                return;
+            }
+        }
+
+        $firstAttemptAt = new DateTimeImmutable($row['first_attempt_at'], new DateTimeZone('UTC'));
+        if ($firstAttemptAt->modify('+' . max(1, $windowMinutes) . ' minutes') < $now) {
+            $attemptCount = 1;
+            $firstAttemptAt = $now;
+        } else {
+            $attemptCount = (int) $row['attempt_count'] + 1;
+        }
+
+        $lockedUntil = null;
+        if ($attemptCount >= max(1, $maxAttempts)) {
+            $lockedUntil = $now->modify('+' . max(1, $lockMinutes) . ' minutes');
+        }
+
+        $update = $this->db->prepare(
+            'UPDATE login_attempts
+             SET attempt_count = :attempt_count,
+                 first_attempt_at = :first_attempt_at,
+                 last_attempt_at = :last_attempt_at,
+                 locked_until = :locked_until
+             WHERE email = :email AND ip_address = :ip'
+        );
+        $update->execute([
+            ':attempt_count' => $attemptCount,
+            ':first_attempt_at' => $firstAttemptAt->format('Y-m-d H:i:s'),
+            ':last_attempt_at' => $now->format('Y-m-d H:i:s'),
+            ':locked_until' => $lockedUntil ? $lockedUntil->format('Y-m-d H:i:s') : null,
+            ':email' => $email,
+            ':ip' => $ipAddress,
+        ]);
+    }
+
+    private function clearLoginAttempts(string $email, string $ipAddress): void
+    {
+        $stmt = $this->db->prepare('DELETE FROM login_attempts WHERE email = :email AND ip_address = :ip');
+        $stmt->execute([
+            ':email' => $email,
+            ':ip' => $ipAddress,
         ]);
     }
 }
