@@ -26,12 +26,8 @@ This initial version implements role-based `signup` and `signin` with your plann
 
 ## Bootstrap Super Admin (current temporary policy)
 
-Default credentials are configured via backend env:
-
-- Email: `rockarush2@gmail.com`
-- Password: `1234abcd`
-
-These are inserted/updated by `backend/scripts/init_db.php`.
+Bootstrap credentials are set via backend env in local development only.
+`backend/scripts/init_db.php` skips bootstrapping outside `APP_ENV=local`.
 
 ## Prerequisites
 
@@ -47,6 +43,13 @@ Copy env template and adjust DB values:
 
 ```bash
 cp /Users/arushan/Downloads/LMS/backend/.env.example /Users/arushan/Downloads/LMS/backend/.env
+```
+
+Add bootstrap credentials for local development in `.env`:
+
+```bash
+BOOTSTRAP_SUPERADMIN_EMAIL=you@example.com
+BOOTSTRAP_SUPERADMIN_PASSWORD=choose-a-strong-password
 ```
 
 ### 2) Create MySQL database

@@ -50,3 +50,14 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     CONSTRAINT fk_audit_actor FOREIGN KEY (actor_user_id) REFERENCES users(id),
     CONSTRAINT fk_audit_target FOREIGN KEY (target_user_id) REFERENCES users(id)
 );
+
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(180) NOT NULL,
+    ip_address VARCHAR(64) NOT NULL,
+    attempt_count INT UNSIGNED NOT NULL DEFAULT 0,
+    first_attempt_at DATETIME NOT NULL,
+    last_attempt_at DATETIME NOT NULL,
+    locked_until DATETIME NULL,
+    UNIQUE KEY uniq_login_attempts (email, ip_address)
+);

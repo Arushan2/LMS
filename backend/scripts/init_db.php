@@ -18,8 +18,18 @@ if ($schemaSql === false) {
 
 $db->exec($schemaSql);
 
-$bootstrapEmail = strtolower((string) env('BOOTSTRAP_SUPERADMIN_EMAIL', 'rockarush2@gmail.com'));
-$bootstrapPassword = (string) env('BOOTSTRAP_SUPERADMIN_PASSWORD', '1234abcd');
+$appEnv = (string) env('APP_ENV', 'local');
+if ($appEnv !== 'local') {
+    fwrite(STDOUT, "Schema applied. Bootstrap super admin skipped for env: {$appEnv}.\n");
+    exit(0);
+}
+
+$bootstrapEmail = strtolower((string) env('BOOTSTRAP_SUPERADMIN_EMAIL', ''));
+$bootstrapPassword = (string) env('BOOTSTRAP_SUPERADMIN_PASSWORD', '');
+if ($bootstrapEmail === '' || $bootstrapPassword === '') {
+    fwrite(STDERR, "Missing BOOTSTRAP_SUPERADMIN_EMAIL or BOOTSTRAP_SUPERADMIN_PASSWORD in .env.\n");
+    exit(1);
+}
 $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
 
 $existingStmt = $db->prepare('SELECT id FROM users WHERE email = :email LIMIT 1');
