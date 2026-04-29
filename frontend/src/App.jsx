@@ -3,10 +3,10 @@ import { useEffect, useMemo, useState } from 'react';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 const roleOptions = [
-  { value: 'student', label: 'Student' },
-  { value: 'lecturer', label: 'Lecturer' },
-  { value: 'system_analyst', label: 'System Analyst' },
-  { value: 'super_admin', label: 'Super Admin' },
+  { value: 'student', label: 'Student', icon: '👨‍🎓' },
+  { value: 'lecturer', label: 'Lecturer', icon: '👨‍🏫' },
+  { value: 'system_analyst', label: 'System Analyst', icon: '👨‍💼' },
+  { value: 'super_admin', label: 'Super Admin', icon: '👑' },
 ];
 
 async function apiCall(path, method, body) {
@@ -36,53 +36,129 @@ function SignupForm({ onSuccess }) {
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [errors, setErrors] = useState({});
+
+  const validatePassword = (pwd) => pwd.length >= 8;
+  const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const onChange = (event) => {
+    const { name, value } = event.target;
     setForm((current) => ({
       ...current,
-      [event.target.name]: event.target.value,
+      [name]: value,
     }));
+    // Clear error for this field
+    if (errors[name]) {
+      setErrors((current) => ({ ...current, [name]: '' }));
+    }
   };
 
   const onSubmit = async (event) => {
     event.preventDefault();
     setLoading(true);
     setMessage('');
+    setErrors({});
+
+    const newErrors = {};
+    if (!form.fullName.trim()) newErrors.fullName = 'Full name is required';
+    if (!validateEmail(form.email)) newErrors.email = 'Valid email is required';
+    if (!validatePassword(form.password)) newErrors.password = 'Password must be at least 8 characters';
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      setLoading(false);
+      return;
+    }
 
     try {
       const result = await apiCall('/auth/signup', 'POST', form);
-      setMessage(result.message || 'Signup submitted.');
+      setMessage(result.message || 'Signup submitted. Please wait for approval.');
+      setForm({ fullName: '', email: '', password: '', requestedRole: 'student' });
       onSuccess?.();
     } catch (error) {
-      setMessage(error.message);
+      setMessage({ text: error.message, type: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <form className="card" onSubmit={onSubmit}>
-      <h2>Sign Up</h2>
-      <p className="helper">Create account for any role. Access starts after approval.</p>
-      <input name="fullName" placeholder="Full name" value={form.fullName} onChange={onChange} required />
-      <input name="email" type="email" placeholder="Email" value={form.email} onChange={onChange} required />
-      <input
-        name="password"
-        type="password"
-        placeholder="Password (min 8 chars)"
-        value={form.password}
-        onChange={onChange}
-        required
-      />
-      <select name="requestedRole" value={form.requestedRole} onChange={onChange}>
-        {roleOptions.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <button type="submit" disabled={loading}>{loading ? 'Submitting...' : 'Create Account'}</button>
-      {message ? <p className="message">{message}</p> : null}
+    <form className="auth-form" onSubmit={onSubmit}>
+      <h2 className="form-title">Create Account</h2>
+      <p className="form-subtitle">Create account for any role. Access starts after approval.</p>
+      
+      <div className="form-group">
+        <label htmlFor="fullName">Full Name</label>
+        <div className="input-wrapper">
+          <span className="input-icon">👤</span>
+          <input
+            id="fullName"
+            name="fullName"
+            type="text"
+            placeholder="Your full name"
+            value={form.fullName}
+            onChange={onChange}
+            className={errors.fullName ? 'error' : ''}
+          />
+        </div>
+        {errors.fullName && <p className="error-text">⚠️ {errors.fullName}</p>}
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="email">Email Address</label>
+        <div className="input-wrapper">
+          <span className="input-icon">✉️</span>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="your@email.com"
+            value={form.email}
+            onChange={onChange}
+            className={errors.email ? 'error' : ''}
+          />
+        </div>
+        {errors.email && <p className="error-text">⚠️ {errors.email}</p>}
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="password">Password</label>
+        <div className="input-wrapper">
+          <span className="input-icon">🔒</span>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            placeholder="Min 8 characters"
+            value={form.password}
+            onChange={onChange}
+            className={errors.password ? 'error' : ''}
+          />
+        </div>
+        {errors.password && <p className="error-text">⚠️ {errors.password}</p>}
+        <p className="helper-text">Password must be at least 8 characters long</p>
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="role">Select Your Role</label>
+        <select id="role" name="requestedRole" value={form.requestedRole} onChange={onChange}>
+          {roleOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.icon} {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <button type="submit" className="btn-primary btn-large" disabled={loading}>
+        {loading ? '⏳ Creating Account...' : '✨ Create Account'}
+      </button>
+
+      {message && (
+        <div className={`alert ${typeof message === 'object' ? message.type : 'success'}`}>
+          {typeof message === 'object' ? message.text : message}
+        </div>
+      )}
     </form>
   );
 }
@@ -91,37 +167,93 @@ function SigninForm({ onSignedIn }) {
   const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [errors, setErrors] = useState({});
 
   const onChange = (event) => {
+    const { name, value } = event.target;
     setForm((current) => ({
       ...current,
-      [event.target.name]: event.target.value,
+      [name]: value,
     }));
+    if (errors[name]) {
+      setErrors((current) => ({ ...current, [name]: '' }));
+    }
   };
 
   const onSubmit = async (event) => {
     event.preventDefault();
     setLoading(true);
     setMessage('');
+    setErrors({});
+
+    const newErrors = {};
+    if (!form.email) newErrors.email = 'Email is required';
+    if (!form.password) newErrors.password = 'Password is required';
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      setLoading(false);
+      return;
+    }
 
     try {
       const result = await apiCall('/auth/signin', 'POST', form);
       onSignedIn(result.user);
     } catch (error) {
-      setMessage(error.message);
+      setMessage({ text: error.message, type: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <form className="card" onSubmit={onSubmit}>
-      <h2>Sign In</h2>
-      <p className="helper">Use your assigned admin credentials.</p>
-      <input name="email" type="email" placeholder="Email" value={form.email} onChange={onChange} required />
-      <input name="password" type="password" placeholder="Password" value={form.password} onChange={onChange} required />
-      <button type="submit" disabled={loading}>{loading ? 'Signing in...' : 'Sign In'}</button>
-      {message ? <p className="message">{message}</p> : null}
+    <form className="auth-form" onSubmit={onSubmit}>
+      <h2 className="form-title">Sign In</h2>
+      <p className="form-subtitle">Use your assigned credentials to access the system</p>
+      
+      <div className="form-group">
+        <label htmlFor="signin-email">Email Address</label>
+        <div className="input-wrapper">
+          <span className="input-icon">✉️</span>
+          <input
+            id="signin-email"
+            name="email"
+            type="email"
+            placeholder="your@email.com"
+            value={form.email}
+            onChange={onChange}
+            className={errors.email ? 'error' : ''}
+          />
+        </div>
+        {errors.email && <p className="error-text">⚠️ {errors.email}</p>}
+      </div>
+
+      <div className="form-group">
+        <label htmlFor="signin-password">Password</label>
+        <div className="input-wrapper">
+          <span className="input-icon">🔒</span>
+          <input
+            id="signin-password"
+            name="password"
+            type="password"
+            placeholder="Enter your password"
+            value={form.password}
+            onChange={onChange}
+            className={errors.password ? 'error' : ''}
+          />
+        </div>
+        {errors.password && <p className="error-text">⚠️ {errors.password}</p>}
+      </div>
+
+      <button type="submit" className="btn-primary btn-large" disabled={loading}>
+        {loading ? '⏳ Signing in...' : '🔓 Sign In'}
+      </button>
+
+      {message && (
+        <div className={`alert ${typeof message === 'object' ? message.type : 'success'}`}>
+          {typeof message === 'object' ? message.text : message}
+        </div>
+      )}
     </form>
   );
 }
@@ -205,12 +337,26 @@ function Dashboard({ user, onSignOut }) {
     <main className="container">
       <div className="card">
         <div className="row between">
-          <h2>Welcome, {user.fullName}</h2>
-          <button onClick={onSignOut}>Sign Out</button>
+          <div>
+            <h2>Welcome, {user.fullName} 👋</h2>
+            <p className="helper">You're now logged into the LMS</p>
+          </div>
+          <button onClick={onSignOut} className="btn-secondary">Sign Out</button>
         </div>
-        <p>Email: {user.email}</p>
-        <p>Status: <code>{user.status}</code></p>
-        <p>Roles: {user.roles.length ? user.roles.join(', ') : 'No active roles'}</p>
+        <div className="dashboard-info">
+          <div className="info-item">
+            <span className="info-label">Email:</span>
+            <span className="info-value">{user.email}</span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">Status:</span>
+            <span className="info-value"><code>{user.status}</code></span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">Roles:</span>
+            <span className="info-value">{user.roles.length ? user.roles.join(', ') : 'No active roles'}</span>
+          </div>
+        </div>
       </div>
       <ApprovalPanel user={user} />
     </main>
@@ -220,6 +366,7 @@ function Dashboard({ user, onSignOut }) {
 export default function App() {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
+  const [authTab, setAuthTab] = useState('signin');
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -246,7 +393,13 @@ export default function App() {
   };
 
   if (!ready) {
-    return <main className="container"><p>Loading...</p></main>;
+    return (
+      <main className="container">
+        <div className="loading-container">
+          <p className="loading-text">⏳ Loading...</p>
+        </div>
+      </main>
+    );
   }
 
   if (user) {
@@ -254,9 +407,65 @@ export default function App() {
   }
 
   return (
-    <main className="container auth-grid">
-      <SignupForm />
-      <SigninForm onSignedIn={onSignedIn} />
+    <main className="auth-container">
+      <div className="auth-wrapper">
+        {/* Left Hero Section */}
+        <div className="hero-section">
+          <div className="hero-content">
+            <h1 className="hero-title">📚 LMS Portal</h1>
+            <p className="hero-subtitle">Learning Management System</p>
+            <p className="hero-description">
+              Join our learning community. Sign in to access your courses, or create a new account to get started.
+            </p>
+            <ul className="hero-features">
+              <li>✨ Easy account creation</li>
+              <li>🔐 Secure authentication</li>
+              <li>👥 Multiple user roles</li>
+              <li>⚡ Role-based access</li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Right Auth Section */}
+        <div className="auth-section">
+          <div className="auth-tabs">
+            <button
+              className={`tab-btn ${authTab === 'signin' ? 'active' : ''}`}
+              onClick={() => setAuthTab('signin')}
+            >
+              Sign In
+            </button>
+            <button
+              className={`tab-btn ${authTab === 'signup' ? 'active' : ''}`}
+              onClick={() => setAuthTab('signup')}
+            >
+              Sign Up
+            </button>
+          </div>
+
+          <div className="tab-content">
+            {authTab === 'signin' ? (
+              <SigninForm onSignedIn={onSignedIn} />
+            ) : (
+              <SignupForm onSuccess={() => setAuthTab('signin')} />
+            )}
+          </div>
+
+          <div className="auth-footer">
+            <p className="footer-text">
+              {authTab === 'signin'
+                ? "Don't have an account? "
+                : 'Already have an account? '}
+              <button
+                className="link-btn"
+                onClick={() => setAuthTab(authTab === 'signin' ? 'signup' : 'signin')}
+              >
+                {authTab === 'signin' ? 'Sign Up' : 'Sign In'}
+              </button>
+            </p>
+          </div>
+        </div>
+      </div>
     </main>
   );
 }
