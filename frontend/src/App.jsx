@@ -203,6 +203,10 @@ function ApprovalPanel({ user }) {
 function Dashboard({ user, onSignOut }) {
   return (
     <main className="container">
+      <div className="welcome-header">
+        <h1>Learning Management System</h1>
+        <p>Dashboard</p>
+      </div>
       <div className="card">
         <div className="row between">
           <h2>Welcome, {user.fullName}</h2>
@@ -246,7 +250,7 @@ export default function App() {
   };
 
   if (!ready) {
-    return <main className="container"><p>Loading...</p></main>;
+    return <main className="container"><p className="loading">Loading...</p></main>;
   }
 
   if (user) {
@@ -254,9 +258,15 @@ export default function App() {
   }
 
   return (
-    <main className="container auth-grid">
-      <SignupForm />
-      <SigninForm onSignedIn={onSignedIn} />
+    <main className="container">
+      <div className="welcome-header">
+        <h1>Learning Management System</h1>
+        <p>Manage your educational journey with ease</p>
+      </div>
+      <div className="auth-grid">
+        <SignupForm />
+        <SigninForm onSignedIn={onSignedIn} />
+      </div>
     </main>
   );
 }
