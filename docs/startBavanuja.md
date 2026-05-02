@@ -317,3 +317,28 @@ php .\backend\scripts\init_db.php
 
 Created for: the `bavanuja-branch1` development flow. Keep `docs/startBavanuja.md` updated when env names, ports, or scripts change.
 
+Run backend properly
+
+
+1 Start My sql server in power shell as administatornet start MySQL80
+net start MySQL80
+
+
+2 Create the MySQL database
+
+Open MySQL and run:
+
+```sql
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS lms CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+cd backend
+php scripts\init_db.php
+
+Start api
+php -S localhost:8000 -t public
+
+In the ending should close all the terminal for frontend and backend. then stop mysql server with powersell run as administator option. 
+
+net stopSQL80
+
+
