@@ -339,6 +339,6 @@ php -S localhost:8000 -t public
 
 In the ending should close all the terminal for frontend and backend. then stop mysql server with powersell run as administator option. 
 
-net stopSQL80
+net stop MySQL80
 
 
