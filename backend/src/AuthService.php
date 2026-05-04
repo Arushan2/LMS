@@ -21,6 +21,11 @@ final class AuthService
             return ['ok' => false, 'message' => 'Invalid role selected.'];
         }
 
+        // Prevent requesting super_admin if one already exists
+        if ($requestedRole === 'super_admin' && $this->superAdminExists()) {
+            return ['ok' => false, 'message' => 'The system can have only one super admin. That role is unavailable.'];
+        }
+
         $existing = $this->findUserByEmail($email);
         if ($existing !== null) {
             return ['ok' => false, 'message' => 'Email already registered.'];
@@ -330,6 +335,10 @@ final class AuthService
     private function canApprove(array $actorRoles, string $requestedRole): bool
     {
         if (in_array('super_admin', $actorRoles, true)) {
+            // Only allow approving super_admin if no super_admin exists yet
+            if ($requestedRole === 'super_admin' && $this->superAdminExists()) {
+                return false;
+            }
             return true;
         }
 
@@ -338,6 +347,21 @@ final class AuthService
         }
 
         return false;
+    }
+
+    private function superAdminExists(): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id FROM user_role_assignments WHERE role_name = :role_name AND is_active = 1 LIMIT 1'
+        );
+        $stmt->execute([':role_name' => 'super_admin']);
+
+        return $stmt->fetch() !== false;
+    }
+
+    public function hasSuperAdmin(): bool
+    {
+        return $this->superAdminExists();
     }
 
     private function logEvent(?int $actorId, string $eventType, ?int $targetUserId, ?array $metadata): void

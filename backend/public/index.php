@@ -28,6 +28,11 @@ if ($method === 'GET' && $uri === '/api/health') {
     exit;
 }
 
+if ($method === 'GET' && $uri === '/api/auth/has-super-admin') {
+    jsonResponse(['ok' => true, 'hasSuperAdmin' => $auth->hasSuperAdmin()]);
+    exit;
+}
+
 if ($method === 'POST' && $uri === '/api/auth/signup') {
     $input = requestJson();
     $fullName = trim((string) ($input['fullName'] ?? ''));

@@ -320,7 +320,7 @@ Created for: the `bavanuja-branch1` development flow. Keep `docs/startBavanuja.m
 Run backend properly
 
 
-1 Start My sql server in power shell as administatornet start MySQL80
+1 Start My sql server in power shell as administatornet(right click in the powershell name on search bar and choose run as administrator) start MySQL80
 net start MySQL80
 
 

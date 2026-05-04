@@ -37,6 +37,40 @@ function SignupForm({ onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState({});
+  const [hasSuperAdmin, setHasSuperAdmin] = useState(false);
+  const [rolesLoading, setRolesLoading] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    const fetchSuperAdminStatus = async () => {
+      try {
+        const result = await apiCall('/auth/has-super-admin', 'GET');
+        setHasSuperAdmin(result.hasSuperAdmin);
+      } catch (error) {
+        console.error('Failed to fetch super admin status:', error);
+      } finally {
+        setRolesLoading(false);
+      }
+    };
+    fetchSuperAdminStatus();
+  }, []);
+
+  const availableRoles = useMemo(() => {
+    if (hasSuperAdmin) {
+      return roleOptions.filter((role) => role.value !== 'super_admin');
+    }
+    return roleOptions;
+  }, [hasSuperAdmin]);
+
+  useEffect(() => {
+    // If currently selected role is no longer available, switch to first available
+    if (form.requestedRole === 'super_admin' && hasSuperAdmin) {
+      setForm((current) => ({
+        ...current,
+        requestedRole: availableRoles[0]?.value || 'student',
+      }));
+    }
+  }, [hasSuperAdmin, availableRoles]);
 
   const validatePassword = (pwd) => pwd.length >= 8;
   const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -128,12 +162,21 @@ function SignupForm({ onSuccess }) {
           <input
             id="password"
             name="password"
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             placeholder="Min 8 characters"
             value={form.password}
             onChange={onChange}
             className={errors.password ? 'error' : ''}
           />
+          <button
+            type="button"
+            className="toggle-password-btn"
+            onClick={() => setShowPassword(!showPassword)}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            title={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? '👁️' : '👁️‍🗨️'}
+          </button>
         </div>
         {errors.password && <p className="error-text">⚠️ {errors.password}</p>}
         <p className="helper-text">Password must be at least 8 characters long</p>
@@ -141,13 +184,25 @@ function SignupForm({ onSuccess }) {
 
       <div className="form-group">
         <label htmlFor="role">Select Your Role</label>
-        <select id="role" name="requestedRole" value={form.requestedRole} onChange={onChange}>
-          {roleOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.icon} {option.label}
-            </option>
-          ))}
-        </select>
+        {rolesLoading ? (
+          <div className="helper-text">Loading available roles...</div>
+        ) : (
+          <>
+            <select
+              id="role"
+              name="requestedRole"
+              value={form.requestedRole}
+              onChange={onChange}
+              disabled={rolesLoading}
+            >
+              {availableRoles.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.icon} {option.label}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
       </div>
 
       <button type="submit" className="btn-primary btn-large" disabled={loading}>
@@ -168,6 +223,7 @@ function SigninForm({ onSignedIn }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
 
   const onChange = (event) => {
     const { name, value } = event.target;
@@ -235,12 +291,21 @@ function SigninForm({ onSignedIn }) {
           <input
             id="signin-password"
             name="password"
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             placeholder="Enter your password"
             value={form.password}
             onChange={onChange}
             className={errors.password ? 'error' : ''}
           />
+          <button
+            type="button"
+            className="toggle-password-btn"
+            onClick={() => setShowPassword(!showPassword)}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            title={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? '👁️' : '👁️‍🗨️'}
+          </button>
         </div>
         {errors.password && <p className="error-text">⚠️ {errors.password}</p>}
       </div>
